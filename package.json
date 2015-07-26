@@ -1,0 +1,20 @@
+{
+  "name": "volume_ray_casting",
+  "description": "A volumetric ray tracer in go",
+  "author": {
+    "name": "Corey Walsh",
+    "email": "coreyhwalsh@gmail.com"
+  },
+  "devDependencies": {
+    "npm-watch": "0.0.0"
+  },
+  "scripts": {
+    "go": "go run main.go",
+    "test_sampler": "cd sampler; go test",
+    "watch": "npm-watch"
+  },
+  "watch": {
+    "go": "main.go",
+    "test_sampler": "sampler/sampler_test.go"
+  }
+}
