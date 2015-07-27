@@ -2,6 +2,8 @@
 
 This is a simple progressively enhancing rendering engine. 
 
+![ex3](https://github.mit.edu/chwalsh/rendering/raw/pretty/example/test_5.png)
+
 The current configuration gives a plesent fragmented trigonometric fade. Run with:
 ``` Bash
 go run main.go
@@ -13,11 +15,10 @@ npm install
 npm run-script watch --silent # re-runs on saves
 ```
 
-### Examples:
+### Examples: [more...](./example)
 
-![ex1](https://github.mit.edu/chwalsh/rendering/raw/pretty/example/26.07.2015.01.59.17.129.png)
 ![ex2](https://github.mit.edu/chwalsh/rendering/raw/pretty/example/26.07.2015.04.49.34.548.png)
-![ex3](https://github.mit.edu/chwalsh/rendering/raw/pretty/example/test_5.png)
+![ex1](https://github.mit.edu/chwalsh/rendering/raw/pretty/example/26.07.2015.01.59.17.129.png)
 ![ex4](https://github.mit.edu/chwalsh/rendering/raw/pretty/example/test_6.png)
 
 This is the general idea of how to use to. See the [well](./main.go) [documented](./utils/utils.go) [source](./sampler/sampler.go) [code](./sampler/sampler_test.go) for specifics.
