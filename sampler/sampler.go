@@ -3,54 +3,10 @@ package sampler
 import (
 	// "image/color"
 	// "fmt"
+	"../utils"
+	"image/color"
 	"math"
 )
-
-func dim1(w int) []float64 {
-	// allocate composed 1d array
-	a := make([]float64, w)
-	return a
-}
-
-func dim2(w, h int) [][]float64 {
-	// allocate composed 2d array
-	a := make([][]float64, w)
-	for i := range a {
-		a[i] = make([]float64, h)
-	}
-	return a
-}
-
-func dim3(w, h, d int) [][][]float64 {
-	// allocate composed 3d array
-	a := make([][][]float64, w)
-	for i := range a {
-		a[i] = make([][]float64, h)
-		for j := range a[i] {
-			a[i][j] = make([]float64, d)
-		}
-	}
-	return a
-}
-
-type coord []float64
-
-func Coord(x, y int) coord {
-	return []float64{float64(x), float64(y)}
-}
-
-func (c coord) x(x ...float64) float64 {
-	if len(x) > 0 {
-		c[0] = x[0]
-	}
-	return c[0]
-}
-func (c coord) y(y ...float64) float64 {
-	if len(y) > 0 {
-		c[1] = y[0]
-	}
-	return c[1]
-}
 
 type Dist func([]float64) float64
 
@@ -82,7 +38,7 @@ func (ws *WeightedSampler) getValue() []float64 {
 	output := make([]float64, len(ws.data))
 
 	for i, v := range ws.data {
-		output[i] = v / (ws.mass / ws.norm)
+		output[i] = ws.norm * v / ws.mass
 	}
 	return output
 }
@@ -140,15 +96,15 @@ func GaussianFrameSampler(w, h, d int, gauss, max_d float64) *FrameSampler {
 	return fs
 }
 
-func (fs *FrameSampler) AddSample(c coord, value []float64) {
+func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 
 	var top, bottom, left, right int
 
 	if fs.max_d > 0 {
-		top = int(math.Min(float64(fs.height), c.y()+fs.max_d))
-		left = int(math.Max(0, c.x()-fs.max_d))
-		right = int(math.Min(float64(fs.width), c.x()+fs.max_d))
-		bottom = int(math.Max(0, c.y()-fs.max_d))
+		top = int(math.Min(float64(fs.height), c.Y()+fs.max_d))
+		left = int(math.Max(0, c.X()-fs.max_d))
+		right = int(math.Min(float64(fs.width), c.X()+fs.max_d))
+		bottom = int(math.Max(0, c.Y()-fs.max_d))
 	} else {
 		top = fs.height
 		left = 0
@@ -159,20 +115,22 @@ func (fs *FrameSampler) AddSample(c coord, value []float64) {
 	for x := left; x < right; x++ {
 		for y := bottom; y < top; y++ {
 
-			r_x := (float64(x) - c.x())
-			r_y := (float64(y) - c.y())
+			r_x := (float64(x) - c.X())
+			r_y := (float64(y) - c.Y())
 
 			r := r_x*r_x + r_y*r_y
 
 			if r <= fs.max_d*fs.max_d {
-				fs.pixelSamplers[x][y].AddSample(c, value)
+				r, g, b, a := value.RGBA()
+				fs.pixelSamplers[x][y].AddSample(c,
+					[]float64{float64(r), float64(g), float64(b), float64(a)})
 			}
 		}
 	}
 }
 
-func (fs *FrameSampler) Rasterize() [][][]float64 {
-	frame := dim3(fs.width, fs.height, fs.depth)
+func (fs *FrameSampler) Rasterize() *utils.Frame {
+	frame := utils.Dim3(fs.width, fs.height, fs.depth)
 
 	// fmt.Println(frame)
 
@@ -181,20 +139,5 @@ func (fs *FrameSampler) Rasterize() [][][]float64 {
 			frame[x][y] = fs.pixelSamplers[x][y].getValue()
 		}
 	}
-	return frame
+	return utils.NewFrame(frame, fs.width, fs.height)
 }
-
-// func FrameSampler()
-
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-// f\left(x\right) = a \exp{\left(- { \frac{(x-b)^2 }{ 2 c^2} } \right)}
-// a*exp()
