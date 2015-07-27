@@ -2,6 +2,18 @@
 
 This is a simple progressively enhancing rendering engine. 
 
+The current configuration gives a plesent fragmented trigonometric fade. Run with:
+``` Bash
+go run main.go
+```
+
+A nice little development enviromnent with:
+``` Bash
+npm install
+npm run-script watch --silent # re-runs on saves
+```
+
+This is the general idea of how to use to. See the [well](./main.go) [documented](./utils/utils.go) [source](./sampler/sampler.go) [code](./sampler/sampler_test.go) for specifics.
 ``` Go
 func colorize(c utils.Coord, width, height float64) utils.Color {
 	x, y := c.X(), c.Y()
