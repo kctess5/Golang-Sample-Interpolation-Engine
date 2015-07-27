@@ -34,6 +34,17 @@ func GetRand(a float64) float64 {
 	return a * (rand.Float64()*2 - 1)
 }
 
+/*
+	Transform the input by a swirl.
+
+	Args:
+	- c: input coordinates
+	- x_o, y_o: swirl center x, swirl center y
+	- rot: amount of rotation in radians
+	- effect: intensity
+	Returns:
+	- Coord: translated coordinates
+*/
 func Swirl(c Coord, x_o, y_o, rot, effect float64) Coord {
 	x, y := c.X(), c.Y()
 
@@ -47,16 +58,29 @@ func Swirl(c Coord, x_o, y_o, rot, effect float64) Coord {
 
 	return NewCoord(u, v)
 }
+
+/*
+	Add [-amount:amount] jitter to input coordinate
+
+	Args:
+	- c: input coordinates
+	- amount: range of jitter
+	Returns:
+	- Coord: translated coordinates
+*/
 func Randomize(c Coord, amount float64) Coord {
 	c.Y(c.Y() + GetRand(amount))
 	c.X(c.X() + GetRand(amount))
 	return c
 }
 
+/*
+	A basic 64 bit coordinate warpper.
+*/
 type Coord []float64
 
 func NewCoord(x, y float64) Coord {
-	return []float64{x, y}
+	return Coord{x, y}
 }
 
 func NewCoordInt(x, y int) Coord {
@@ -76,6 +100,9 @@ func (c Coord) Y(y ...float64) float64 {
 	return c[1]
 }
 
+/*
+	Exit if a problem occurs
+*/
 func FailGracefully(err error) {
 	if err != nil {
 		fmt.Println(err)
@@ -88,6 +115,9 @@ func makeTimestamp() string {
 	return t.Format("02.01.2006.15.04.05.000")
 }
 
+/*
+	A slightly more convenient color implementation
+*/
 type Color struct {
 	d []float64
 }
@@ -113,6 +143,9 @@ func (c Color) Src() []float64 {
 	return c.d
 }
 
+/*
+	Wraps a rasterized frame object. Fulifills the Image interface
+*/
 type Frame struct {
 	image  [][][]float64
 	width  int
@@ -184,9 +217,11 @@ func LoadImage(fn string) (int, int, *Frame) {
 	}
 
 	return w, h, image
-
 }
 
+/*
+	Convienient multi-dimensional array wrappers
+*/
 func Dim1(w int) []float64 {
 	// allocate composed 1d array
 	a := make([]float64, w)

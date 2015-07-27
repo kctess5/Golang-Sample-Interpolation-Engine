@@ -1,16 +1,17 @@
 package sampler
 
 import (
-	// "image/color"
 	"../utils"
-	// "fmt"
 	"image/color"
 	"math"
 	"sync"
 )
 
+// Distribution. Takes a vector, returns a weight
 type Dist func([]float64) float64
 
+// Constructs a gaussian distribution function with the given
+// parameters
 func GaussianFactory(x_center, y_center, u_0 float64) Dist {
 
 	bottomExp := -2 * u_0 * u_0
@@ -23,10 +24,14 @@ func GaussianFactory(x_center, y_center, u_0 float64) Dist {
 
 		r := x_r*x_r + y_r*y_r
 
+		// gaussian function
 		return math.Exp(r/bottomExp) / bottomTerm
 	}
 }
 
+/*
+	A single pixel sampler.
+*/
 type WeightedSampler struct {
 	data    []float64
 	mass    float64
@@ -35,6 +40,10 @@ type WeightedSampler struct {
 	lock    sync.Mutex
 }
 
+/*
+	Returns current belief of this samplers aggregate value.
+	Normalizes it with respect to the gathered gaussian mass
+*/
 func (ws *WeightedSampler) getValue() []float64 {
 	output := make([]float64, len(ws.data))
 
@@ -44,29 +53,31 @@ func (ws *WeightedSampler) getValue() []float64 {
 	return output
 }
 
+/*
+	Add in a sample with an associated color weight
+*/
 func (ws *WeightedSampler) AddSample(coords, value []float64) {
 	sampleWeight := ws.distFxn(coords)
 
-	if sampleWeight <= 0 {
+	if sampleWeight <= 0 || coords[0] < 0.0 || coords[1] < 0.0 {
+		// fail in the bad cases
 		return
 	}
 
-	if coords[0] < 0.0 || coords[1] < 0.0 {
-		return
-	}
-
+	// acquite mutex lock on this pixel sampler
 	ws.lock.Lock()
 
+	// add in sample value
 	for i, v := range value {
 		ws.data[i] += v * sampleWeight
 	}
 
+	// update gaussian mass
 	ws.mass += sampleWeight
 
 	ws.lock.Unlock()
 }
 
-// args:
 func Gaussian2DPixelSampler(x, y, gauss float64, w int) *WeightedSampler {
 	return &WeightedSampler{
 		data:    make([]float64, w),
@@ -77,6 +88,9 @@ func Gaussian2DPixelSampler(x, y, gauss float64, w int) *WeightedSampler {
 	}
 }
 
+/*
+	An abstract frame object, comprised of a 2d array of frame samplers
+*/
 type FrameSampler struct {
 	pixelSamplers [][]*WeightedSampler
 	max_d         float64
@@ -115,11 +129,15 @@ func GaussianFrameSampler(
 	return fs
 }
 
+/*
+	Add in a sample, update nearby pixel samplers within max_d radius
+*/
 func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 
 	var top, bottom, left, right int
 
 	if fs.max_d > 0 {
+		// makes sure not to index outside of the pixel sampler bounds
 		top = int(math.Min(float64(fs.height), c.Y()+fs.max_d))
 		left = int(math.Max(0, c.X()-fs.max_d))
 		right = int(math.Min(float64(fs.width), c.X()+fs.max_d))
@@ -131,6 +149,7 @@ func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 		bottom = 0
 	}
 
+	// iterate over local box
 	for x := left; x < right; x++ {
 		for y := bottom; y < top; y++ {
 
@@ -139,7 +158,9 @@ func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 
 			r := r_x*r_x + r_y*r_y
 
+			// make sure that the pixel is within the specified radius bound
 			if r <= fs.max_d*fs.max_d {
+				// convert color type and add sample
 				r, g, b, a := value.RGBA()
 
 				fs.pixelSamplers[x][y].AddSample(c,
@@ -149,19 +170,22 @@ func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 	}
 }
 
+/*
+	Iterate over all pixel samplers and collect current belief.
+	Multithreaded.
+*/
 func (fs *FrameSampler) Rasterize() *utils.Frame {
 	frame := utils.Dim3(fs.width, fs.height, fs.depth)
 
+	// start up one goroutine per thread to collect samples.
 	var wg sync.WaitGroup
-
 	for i := 0; i < fs.max_CPU; i++ {
-
 		wg.Add(1)
 
 		go func(i, max int) {
-
 			for x := i; x < fs.width; x += max {
 				for y := 0; y < fs.height; y++ {
+					// Collect pixel value
 					frame[x][y] = fs.pixelSamplers[x][y].getValue()
 				}
 			}
@@ -169,7 +193,7 @@ func (fs *FrameSampler) Rasterize() *utils.Frame {
 
 		}(i, fs.max_CPU)
 	}
-
+	// wait for all samples
 	wg.Wait()
 
 	return utils.NewFrame(frame, fs.width, fs.height)

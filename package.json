@@ -11,7 +11,7 @@
   "scripts": {
     "go": "go run main.go",
     "go_vrc": "go run vrc.go",
-    "test_sampler": "cd sampler; go test",
+    "test_sampler": "go test ./sampler",
     "watch": "npm-watch"
   },
   "watch": {

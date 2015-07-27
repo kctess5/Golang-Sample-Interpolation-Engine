@@ -4,7 +4,6 @@ import (
 	"./sampler"
 	"./utils"
 	"fmt"
-	"image/color"
 	"math"
 	"math/rand"
 	"runtime"
@@ -12,63 +11,46 @@ import (
 	"time"
 )
 
-func PSin(i float64) float64 {
-	return (math.Sin(i) + 1) / 2
-}
-func ConvColor(c color.Color) utils.Color {
-	r, g, b, a := c.RGBA()
-
-	return utils.NewColor(float64(r), float64(g), float64(b), float64(a))
-}
-
+// abstract frame size
 const width = 640
 const height = 480
 
-// const width = 1280
-// const height = 960
-
-// const width = 1920
-// const height = 1080
-
+// scaling an image will strictly make it higher resolution
+// (ideally) it should look the same, just bigger, and slower
 const scale = 1.0
 
-const x_step = 30 * scale
-const y_step = 30 * scale
+// sample density
+const x_step = 10 * scale
+const y_step = 10 * scale
 
-const iterations = 1
-const max_d = 70 * scale
-const positionChaos = 20 * scale
+const iterations = 1 // number of passes
 
-const gauss = 1.5
+/*
+	this affects the frame sampler sampling algorithm. Setting it
+	higher will allow for cause the algorithm to sample a larger search
+	space. If it is too low, then the render will have holes. To high
+	and it will be needlessly slow
+*/
+const max_d = 30 * scale
+const positionChaos = 10 * scale // sample jitter
 
-func f_1(c utils.Coord, x_c, y_c float64) float64 {
-	x, y := c.X(), c.Y()
-	return math.Cos(x_c*x) - math.Cos(y_c*y)
-}
-
-func f_2(c utils.Coord, x_c, y_c float64) float64 {
-	x, y := c.X(), c.Y()
-	return math.Sin(y*x/x_c) + y*math.Cos(y/y_c)
-}
+// constant for gaussian sampling
+const gauss = 1.2
 
 func transform(c utils.Coord, width, height float64) utils.Coord {
+	// add jitter
 	return utils.Randomize(c, positionChaos)
-	// return c
 }
 
 func colorize(c utils.Coord, width, height float64) utils.Color {
+	x, y := c.X(), c.Y()
+	w, h, wh := width, height, width*height
 
-	c_2 := utils.Swirl(c, width/2, height/2, math.Pi, height)
+	// a simple trigonometric fade
 
-	x, y := c_2.X(), c_2.Y()
-	_, h, wh := width, height, width*height
-
-	// x_2 := x + 22
-	// y_2 := y + 22
-
-	r := 0.0 * math.Sin(x*y/wh)
-	g := 0.0 * math.Sin(y/h)
-	b := f_2(c, 2*width, 2*height)
+	r := 1.0 * math.Sin(x*y/wh)
+	g := 1.0 * math.Sin(y/h)
+	b := 1.0 * math.Sin(x/w)
 	a := 1.0
 
 	return utils.NewColorFrac(r, g, b, a)
@@ -78,75 +60,77 @@ func main() {
 	fmt.Print("Initializing Rendering Engine. ")
 
 	cpus := 8
-	// cpus := 1
-	runtime.GOMAXPROCS(cpus)
-	// utils.StartNetProfile("profile")
+	runtime.GOMAXPROCS(cpus) // use all CPUs
 
 	rand.Seed(time.Now().UTC().UnixNano())
 	start := time.Now()
 
-	s_gauss := gauss * math.Pow(scale, 1)
+	// these are the scaled dims of the output image, useful later
 	s_height, s_width := scale*height, scale*width
 
-	fs := sampler.GaussianFrameSampler(int(s_width), int(s_height), 4, s_gauss,
-		float64(max_d), cpus)
+	// initialize Gaussian frame sampler. This aggregates samples
+	// into rasterized images progressively.
+	fs := sampler.GaussianFrameSampler(int(s_width), int(s_height), 4,
+		gauss, float64(max_d), cpus)
 
 	fmt.Println("Adding samples using:", cpus, "CPUs.")
 
 	var wg sync.WaitGroup
 
 	for i := 0; i < cpus; i++ {
-		wg.Add(1)
+		wg.Add(1) // increment wait counter
 
-		go func(i, max, width, height int) {
-			for x := x_step * float64(i); x < float64(width)*scale+x_step; x += x_step * float64(max) {
-				for y := y_step; y < float64(height)*scale+y_step; y += y_step {
+		// starts one goroutine per cpu. Each goroutine covers a
+		// fraction of the work area
+
+		step := x_step * float64(cpus)
+		x_bound, y_bound := s_width+x_step, s_height+y_step
+
+		go func(i, width, height int) {
+
+			/*
+				Start offset by i, then increment by the specified step size,
+				go one extra step at the end for good measure'
+
+				O(width/x_step * height/y_step * iterations * max_d^2)
+			*/
+			for x := x_step * float64(i); x < x_bound; x += step {
+				for y := y_step; y < y_bound; y += y_step {
 
 					coords := utils.NewCoord(x, y)
 
 					for i := 0.0; i < iterations; i++ {
+
+						/*
+							calculate sample position as a funciton of x, y. this
+							allows us to transform the distribution of samples
+							very easily
+						*/
 						p := transform(coords, s_width, s_height)
+
+						// calculate color as a function of position in frame
 						c := colorize(coords, s_width, s_height)
 
-						fs.AddSample(p, c)
+						fs.AddSample(p, c) // O(max_d^2)
 					}
 				}
 			}
-			defer wg.Done()
-		}(i, cpus, width, height)
+			defer wg.Done() // decrement wait counter
+		}(i, width, height)
 	}
 
-	// for i := 0.0; i < iterations; i++ {
-	// 	for x := 0.0; x < float64(width)*scale+x_step; x += x_step {
-	// 		for y := 0.0; y < float64(height)*scale+y_step; y += y_step {
-
-	// 			wg.Add(1)
-
-	// 			go func(coords utils.Coord, width, height int, shaders ...utils.Color) {
-
-	// 				p := transform(coords, width, height)
-	// 				c := colorize(coords, width, height)
-
-	// 				fs.AddSample(p, c)
-	// 				// Decrement the counter when the goroutine completes.
-	// 				defer wg.Done()
-	// 			}(
-	// 				utils.NewCoord(x, y),
-	// 				width,
-	// 				height,
-	// 			)
-	// 		}
-	// 	}
-	// }
-
+	// wait for all goroutines to finish
 	wg.Wait()
 
 	fmt.Print("Rasterizing... ")
 	r_start := time.Now()
+
+	// Rasterize calls are actually cheap operations, since all of the
+	// work is done progressively in the for loop
 	raster := fs.Rasterize()
+
+	// Save to PNG and give stats
 	fmt.Println(time.Since(r_start))
-
 	utils.SaveImage(int(s_width), int(s_height), raster, "test")
-
 	fmt.Println("Finished in:", time.Since(start))
 }
