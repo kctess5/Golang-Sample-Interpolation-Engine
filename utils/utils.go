@@ -131,16 +131,6 @@ func (f *Frame) setAt(x, y int, c Color) {
 	f.image[x][y] = c.d
 }
 
-// // ColorModel returns the Image's color model.
-// ColorModel() color.Model
-// // Bounds returns the domain for which At can return non-zero color.
-// // The bounds do not necessarily contain the point (0, 0).
-// Bounds() Rectangle
-// // At returns the color of the pixel at (x, y).
-// // At(Bounds().Min.X, Bounds().Min.Y) returns the upper-left pixel of the grid.
-// // At(Bounds().Max.X-1, Bounds().Max.Y-1) returns the lower-right one.
-// At(x, y int) color.Color
-
 func (f Frame) At(x, y int) color.Color {
 	return Color{f.image[x][y]}
 }
@@ -160,32 +150,10 @@ func SaveImage(width, height int, frame *Frame, fn string) {
 	out2, err := os.Create("./output/" + fn + ".png")
 	FailGracefully(err)
 
-	fmt.Println(makeTimestamp())
+	fmt.Println("Saving As: ", makeTimestamp())
 
-	// img := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	// draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{0, 0, 0, 255}}, image.ZP, draw.Src)
-
-	// for y := 0; y < height; y++ {
-	// 	for x := 0; x < width; x++ {
-
-	// 		draw()
-
-	// 		r, g, b, a := uint8(frame[x][y][0]),
-	// 			uint8(frame[x][y][1]),
-	// 			uint8(frame[x][y][2]),
-	// 			uint8(frame[x][y][3])
-
-	// 		fill := color.RGBA{r, g, b, a}
-
-	// 		draw.Draw(img, image.Rect(x, y, x+1, y+1), &image.Uniform{fill}, image.ZP, draw.Src)
-	// 	}
-	// }
-
-	// ok, write out the data into the new PNG file
-
-	FailGracefully(png.Encode(out, frame))
-	FailGracefully(png.Encode(out2, frame))
+	go FailGracefully(png.Encode(out, frame))
+	go FailGracefully(png.Encode(out2, frame))
 }
 
 func LoadImage(fn string) (int, int, *Frame) {

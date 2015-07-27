@@ -2,10 +2,11 @@ package sampler
 
 import (
 	// "image/color"
-	// "fmt"
 	"../utils"
+	// "fmt"
 	"image/color"
 	"math"
+	"sync"
 )
 
 type Dist func([]float64) float64
@@ -23,7 +24,6 @@ func GaussianFactory(x_center, y_center, u_0 float64) Dist {
 		r := x_r*x_r + y_r*y_r
 
 		return math.Exp(r/bottomExp) / bottomTerm
-
 	}
 }
 
@@ -32,6 +32,7 @@ type WeightedSampler struct {
 	mass    float64
 	norm    float64
 	distFxn Dist
+	lock    sync.Mutex
 }
 
 func (ws *WeightedSampler) getValue() []float64 {
@@ -46,11 +47,23 @@ func (ws *WeightedSampler) getValue() []float64 {
 func (ws *WeightedSampler) AddSample(coords, value []float64) {
 	sampleWeight := ws.distFxn(coords)
 
+	if sampleWeight <= 0 {
+		return
+	}
+
+	if coords[0] < 0.0 || coords[1] < 0.0 {
+		return
+	}
+
+	ws.lock.Lock()
+
 	for i, v := range value {
 		ws.data[i] += v * sampleWeight
 	}
 
 	ws.mass += sampleWeight
+
+	ws.lock.Unlock()
 }
 
 // args:
@@ -60,6 +73,7 @@ func Gaussian2DPixelSampler(x, y, gauss float64, w int) *WeightedSampler {
 		mass:    0,
 		norm:    1,
 		distFxn: GaussianFactory(x, y, gauss),
+		lock:    sync.Mutex{},
 	}
 }
 
@@ -69,9 +83,13 @@ type FrameSampler struct {
 	width         int
 	height        int
 	depth         int
+	max_CPU       int
 }
 
-func GaussianFrameSampler(w, h, d int, gauss, max_d float64) *FrameSampler {
+func GaussianFrameSampler(
+	w, h, d int,
+	gauss, max_d float64,
+	max_CPU int) *FrameSampler {
 	dim2PixelSampler := make([][]*WeightedSampler, w)
 
 	for i := range dim2PixelSampler {
@@ -84,6 +102,7 @@ func GaussianFrameSampler(w, h, d int, gauss, max_d float64) *FrameSampler {
 		width:         w,
 		height:        h,
 		depth:         d,
+		max_CPU:       max_CPU,
 	}
 
 	for x := 0; x < w; x++ {
@@ -122,6 +141,7 @@ func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 
 			if r <= fs.max_d*fs.max_d {
 				r, g, b, a := value.RGBA()
+
 				fs.pixelSamplers[x][y].AddSample(c,
 					[]float64{float64(r), float64(g), float64(b), float64(a)})
 			}
@@ -132,12 +152,33 @@ func (fs *FrameSampler) AddSample(c utils.Coord, value color.Color) {
 func (fs *FrameSampler) Rasterize() *utils.Frame {
 	frame := utils.Dim3(fs.width, fs.height, fs.depth)
 
-	// fmt.Println(frame)
+	var wg sync.WaitGroup
 
-	for x := 0; x < fs.width; x++ {
-		for y := 0; y < fs.height; y++ {
-			frame[x][y] = fs.pixelSamplers[x][y].getValue()
-		}
+	for i := 0; i < fs.max_CPU; i++ {
+
+		wg.Add(1)
+
+		go func(i, max int) {
+
+			for x := i; x < fs.width; x += max {
+				for y := 0; y < fs.height; y++ {
+					frame[x][y] = fs.pixelSamplers[x][y].getValue()
+				}
+			}
+			defer wg.Done()
+
+		}(i, fs.max_CPU)
 	}
+
+	wg.Wait()
+
 	return utils.NewFrame(frame, fs.width, fs.height)
+}
+
+func (fs *FrameSampler) Width() int {
+	return fs.width
+}
+
+func (fs *FrameSampler) Height() int {
+	return fs.height
 }

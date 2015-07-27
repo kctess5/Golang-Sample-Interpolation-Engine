@@ -10,11 +10,13 @@
   },
   "scripts": {
     "go": "go run main.go",
+    "go_vrc": "go run vrc.go",
     "test_sampler": "cd sampler; go test",
     "watch": "npm-watch"
   },
   "watch": {
     "go": "main.go",
+    "go_vrc": "vrc.go",
     "test_sampler": "sampler/sampler_test.go"
   }
 }
