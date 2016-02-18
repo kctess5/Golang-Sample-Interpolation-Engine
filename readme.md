@@ -1,10 +1,10 @@
 ## Sample cloud interpolation engine in Go
 
-This is a simple progressively enhancing rendering engine. 
-
 ![ex3](https://github.com/kctess5/Golang-Sample-Interpolation-Engine/blob/master/example/test_5.png)
 
-The current configuration gives a plesent fragmented trigonometric fade. Run with:
+A simple algorithmic Go image generation engine. It relies on a frame buffer which interpolates the contribution of added color samples to nearby pixels. The result is a system which can easily be made to generate some very nice looking images.
+
+The current configuration gives a pleasant fragmented trigonometric fade. Run with:
 ``` Bash
 go run main.go
 ```
